@@ -3,14 +3,14 @@
 """
 Created on Wed Oct 30 15:53:38 2019
 
-@author: tug76662
+@author: Timothy Bieniosek
 """
 
 import yaml
 import glob
 import os
 import shutil
-from zipfile import ZipFile
+from zipfile import ZipFile, ZIP_DEFLATED
 from datetime import datetime
 import hashlib
 import exiftool
@@ -34,8 +34,8 @@ tif_dirs = ["/TIFFs to OCR/*.tif", "/Cover TIFFs/*.tif"]
 # 
 # DIRECTORY FOR GENERATED ARTIFACTS
 #
-working_dir = "/Users/tug76662/Documents/Python/ocr_text/"
-
+working_dir = "/Users/tuh48546/SFIngest"
+#working_dir = "/Users/tug76662/"
 #
 # TOP LEVEL METADATA FOR ALL SCANS
 #
@@ -70,15 +70,22 @@ for tld in top_level_dirs:
             hathi_metadata_pulled = False
             scan_metadata = {}
             noid = os.path.split(subdir2)[-1]
+            zipfilename = working_dir+noid+'.zip'
+            if os.path.exists(zipfilename) == True:
+                # IF WE'VE ALREADY PROCESSED AND COMPRESSED THIS BOOK, DON'T PROCESS AGAIN
+                print("Skipping "+noid)
+                continue
             current_book_dir = working_dir+noid+"/"
-            os.mkdir(current_book_dir)
+            if os.path.exists(current_book_dir) == False:
+                os.mkdir(current_book_dir)
+            print(current_book_dir)
             # PROCESS PAGES
             for subdir_3 in tif_dirs:
                 for filepath in glob.glob(subdir2+subdir_3):
                     if hathi_metadata_pulled == False:
                         with exiftool.ExifTool(exiftool_bin) as et:
                             scan_metadata = et.get_metadata(filepath)
-                            print(scan_metadata)
+#                            print(scan_metadata)
                         # PULL SCAN DATE FROM TIF TAGS AND FORMAT AS ISO8601 PER HATHI SPECS
                         date_time_str = scan_metadata['File:FileModifyDate']
                         date_time_obj = datetime.strptime(date_time_str, '%Y:%m:%d %H:%M:%S%z')
@@ -100,6 +107,7 @@ for tld in top_level_dirs:
                         outfile.write(ocr_text)
                     ocr_tiffilename = "{}0000{}.tif".format(current_book_dir,filenum)
                     # "copy2() ... attempts to preserve file metadata"
+                    # this will overwrite existing files, if a copy failed midstream
                     shutil.copy2(filepath, ocr_tiffilename)
                     
             # DUMP METADATA
@@ -116,15 +124,9 @@ for tld in top_level_dirs:
                         f = os.path.split(fn)[-1]                    
                         md5file.write("{} {}\n".format(md5sum, f))
             # CREATE ZIP
-            with ZipFile(working_dir+noid+'.zip', 'w') as zipfile:
+            with ZipFile(zipfilename, 'w', compression=ZIP_DEFLATED, compresslevel=9) as zipfile:
                 for fn in glob.glob(current_book_dir+"*"):
                     zipfile.write(fn,os.path.basename(fn))
-            break
-        break
-    break
-
-#os.chdir("/mydir")
-
-#
-#
-
+#            break
+#        break
+#    break
