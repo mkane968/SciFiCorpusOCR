@@ -34,8 +34,9 @@ tif_dirs = ["/TIFFs to OCR/*.tif", "/Cover TIFFs/*.tif"]
 # 
 # DIRECTORY FOR GENERATED ARTIFACTS
 #
-working_dir = "/Users/tuh48546/SFIngest"
+working_dir = "/Users/tuh48546/SFIngest/"
 #working_dir = "/Users/tug76662/"
+
 #
 # TOP LEVEL METADATA FOR ALL SCANS
 #
@@ -70,18 +71,19 @@ for tld in top_level_dirs:
             hathi_metadata_pulled = False
             scan_metadata = {}
             noid = os.path.split(subdir2)[-1]
-            zipfilename = working_dir+noid+'.zip'
+            zipfilename = working_dir+"/"+noid+'.zip'
             if os.path.exists(zipfilename) == True:
                 # IF WE'VE ALREADY PROCESSED AND COMPRESSED THIS BOOK, DON'T PROCESS AGAIN
                 print("Skipping "+noid)
                 continue
-            current_book_dir = working_dir+noid+"/"
+            current_book_dir = working_dir+"/"+noid+"/"
             if os.path.exists(current_book_dir) == False:
                 os.mkdir(current_book_dir)
             print(current_book_dir)
             # PROCESS PAGES
             for subdir_3 in tif_dirs:
                 for filepath in glob.glob(subdir2+subdir_3):
+                    print(filepath)
                     if hathi_metadata_pulled == False:
                         with exiftool.ExifTool(exiftool_bin) as et:
                             scan_metadata = et.get_metadata(filepath)
@@ -95,8 +97,12 @@ for tld in top_level_dirs:
                         hathi_data['scanner_make'] = scanner_make
                         hathi_data['scanner_model'] = scanner_model
                         hathi_metadata_pulled = True # we won't update the metadata until the next novel
-                        
-                    ocr_text = pytesseract.image_to_string(Image.open(filepath))
+                    # OCR THE SCANNED IMAGE
+                    # some of the scan tifs seem to confuse PIL TiffImagePlugin.py
+                    # asking PIL to tweak the data to RGBA mode works around this (I believe it triggers a conversion to PNG)
+                    # note that this is just a temporary file. the original TIF is preserved unmodified for submission
+                    img = Image.open(filepath).convert(mode='RGBA')
+                    ocr_text = pytesseract.image_to_string(img)
     #                print(ocr_text)             
                     filename, file_extension = os.path.splitext(os.path.basename(filepath))
                     filenum = filename.split("Y")[-1].split('-')[0]
@@ -127,6 +133,10 @@ for tld in top_level_dirs:
             with ZipFile(zipfilename, 'w', compression=ZIP_DEFLATED, compresslevel=9) as zipfile:
                 for fn in glob.glob(current_book_dir+"*"):
                     zipfile.write(fn,os.path.basename(fn))
-#            break
-#        break
-#    break
+            # 
+            # DONE WITH BOOK
+            #
+#           break 
+#       break # END LOOP OVER BOOKS IN BATCH 
+#   break # END LOOP OVER BATCHES
+# END LOOP OVER ROUNDS
