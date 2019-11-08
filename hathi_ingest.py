@@ -34,7 +34,7 @@ tif_dirs = ["/TIFFs to OCR/*.tif", "/Cover TIFFs/*.tif"]
 # 
 # DIRECTORY FOR GENERATED ARTIFACTS
 #
-working_dir = "/Users/tuh48546/SFIngest/"
+working_dir = "/Users/dscadmin/SFIngest/"
 #working_dir = "/Users/tug76662/"
 
 #
@@ -83,6 +83,14 @@ for tld in top_level_dirs:
             # PROCESS PAGES
             for subdir_3 in tif_dirs:
                 for filepath in glob.glob(subdir2+subdir_3):
+                    # TRY TO BAIL OUT IF WE LOST THE VOLUME MOUNT
+                    if os.path.exists(filepath) == False or os.path.isfile(filepath) == False:
+                        print("Lost the filesystem on file {}, bailing out.".format(filepath))
+                        # set metadata flag back to false and we'll not write a zipfile (below)
+                        hathi_metadata_pulled = False
+                        # quit the scan file loop 
+                        break 
+                    # GET SCAN METADATA FROM FIRST IMAGE; ASSUME THE REST FOLLOW SUIT
                     print(filepath)
                     if hathi_metadata_pulled == False:
                         with exiftool.ExifTool(exiftool_bin) as et:
@@ -102,6 +110,7 @@ for tld in top_level_dirs:
                     # asking PIL to tweak the data to RGBA mode works around this (I believe it triggers a conversion to PNG)
                     # note that this is just a temporary file. the original TIF is preserved unmodified for submission
                     img = Image.open(filepath).convert(mode='RGBA')
+                    # NOTE: we could do some image enhancement here
                     ocr_text = pytesseract.image_to_string(img)
     #                print(ocr_text)             
                     filename, file_extension = os.path.splitext(os.path.basename(filepath))
@@ -116,23 +125,30 @@ for tld in top_level_dirs:
                     # this will overwrite existing files, if a copy failed midstream
                     shutil.copy2(filepath, ocr_tiffilename)
                     
-            # DUMP METADATA
-            with open(current_book_dir+'meta.yml', 'w') as outfile:
-                yaml.dump(hathi_data, outfile)
-            # GENERATE CHECKSUM 
-            with open(current_book_dir+"checksum.md5", "w") as md5file:
-                for fn in glob.glob(current_book_dir+"*"):
-                    hash = hashlib.md5()
-                    hash.update(open(fn, "rb").read())
-                    md5sum = hash.hexdigest()
-                    # "checksum.md5 MUST NOT contain a checksum for checksum.md5"
-                    if os.path.split(fn)[-1].split('.')[-1] != "md5":
-                        f = os.path.split(fn)[-1]                    
-                        md5file.write("{} {}\n".format(md5sum, f))
-            # CREATE ZIP
-            with ZipFile(zipfilename, 'w', compression=ZIP_DEFLATED, compresslevel=9) as zipfile:
-                for fn in glob.glob(current_book_dir+"*"):
-                    zipfile.write(fn,os.path.basename(fn))
+            if hathi_metadata_pulled == True:
+                #
+                # DUMP METADATA
+                #
+                with open(current_book_dir+'meta.yml', 'w') as outfile:
+                    yaml.dump(hathi_data, outfile)
+                #
+                # GENERATE CHECKSUM 
+                #
+                with open(current_book_dir+"checksum.md5", "w") as md5file:
+                    for fn in glob.glob(current_book_dir+"*"):
+                        hash = hashlib.md5()
+                        hash.update(open(fn, "rb").read())
+                        md5sum = hash.hexdigest()
+                        # "checksum.md5 MUST NOT contain a checksum for checksum.md5"
+                        if os.path.split(fn)[-1].split('.')[-1] != "md5":
+                            f = os.path.split(fn)[-1]                    
+                            md5file.write("{} {}\n".format(md5sum, f))
+                #
+                # CREATE ZIP
+                #
+                with ZipFile(zipfilename, 'w', compression=ZIP_DEFLATED, compresslevel=9) as zipfile:
+                    for fn in glob.glob(current_book_dir+"*"):
+                        zipfile.write(fn,os.path.basename(fn))
             # 
             # DONE WITH BOOK
             #
